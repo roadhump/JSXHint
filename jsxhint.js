@@ -7,24 +7,17 @@
  * Please see LICENSE for details
  *
  */
-
+/*eslint-env node*/
+/*eslint quotes:0, no-unused-vars:[2] */
 'use strict';
 
 var fs = require('fs');
 var path = require('path');
-
-var jshint = require('jshint').JSHINT;
-var gather = require('jshint/src/cli').gather;
 var react = require('react-tools');
-var through = require('through');
 var docblock = require('jstransform/src/docblock');
-var fork = require('child_process').fork;
 var async = require('async');
-var path = require('path');
 var mkdirp = require('mkdirp');
 
-var currFile = require.main ? require.main.filename : undefined;
-var prjRoot = path.dirname(currFile || process.cwd());
 var tmpdir = require('os').tmpdir();
 
 /**
@@ -34,9 +27,12 @@ var tmpdir = require('os').tmpdir();
  * @param  {String}   fileName   Name of the file; "stdin" if reading from stdio.
  * @param  {Function} cb   The callback to call when it's ready.
  */
-function transformJSX(fileStream, fileName, cb){
+function transformJSX(fileStream, fileName, cb) {
 
-  function processFile(){
+  // Drain stream
+  var source = '';
+
+  function processFile() {
     try {
       var hasDocblock = docblock.parseAsObject(docblock.extract(source)).jsx;
       var hasExtension = /\.jsx$/.exec(fileName) || fileName === "stdin";
@@ -50,26 +46,26 @@ function transformJSX(fileStream, fileName, cb){
       }
 
       cb(null, source);
-    } catch(e) {
+    } catch (e) {
       e.fileName = fileName;
       cb(e);
     }
   }
 
   // Allow omitting filename
-  if (typeof fileName === "function"){
+  if (typeof fileName === "function") {
     cb = fileName;
     fileName = typeof fileStream === "string" ? fileStream : 'stdin';
   }
 
   // Allow passing strings into this method e.g. when using it as a lib
-  if (typeof fileStream === "string"){
-    fileStream = fs.createReadStream(fileStream, {encoding: "utf8"});
+  if (typeof fileStream === "string") {
+    fileStream = fs.createReadStream(fileStream, {
+      encoding: "utf8"
+    });
   }
 
-  // Drain stream
-  var source = '';
-  fileStream.on('data', function(chunk){
+  fileStream.on('data', function(chunk) {
     source += chunk;
   });
   fileStream.on('end', processFile);
@@ -81,7 +77,7 @@ function transformJSX(fileStream, fileName, cb){
  * JSHint CLI uses these to determine settings.
  * @param  {String} dir Path
  */
-function copyConfig(dir, file, cb){
+function copyConfig(dir, file, cb) {
   var check = path.resolve(dir, file);
   if (fs.existsSync(check)) {
     var rs = fs.createReadStream(check);
@@ -102,16 +98,21 @@ function copyConfig(dir, file, cb){
  * @param  {String}   contents File contents.
  * @param  {Function} cb       Callback.
  */
-function createTempFile(fileName, contents, cb){
+function createTempFile(fileName, contents, cb) {
   fileName = path.resolve(fileName);
   var file = path.join(tmpdir, fileName);
-  mkdirp(path.dirname(file), function(){
+  mkdirp(path.dirname(file), function() {
     var dir = path.dirname(fileName);
     async.parallel([
-      function(cb){ fs.createWriteStream(file).end(contents, cb); },
+
+      function(cb) {
+        fs.createWriteStream(file).end(contents, cb);
+      },
       async.apply(copyConfig, dir, '.jshintrc'),
       async.apply(copyConfig, dir, 'package.json')
-    ], function(){ cb(null, file); });
+    ], function() {
+      cb(null, file);
+    });
   });
 }
 
@@ -123,8 +124,8 @@ function createTempFile(fileName, contents, cb){
  * @param  {Array}   fileContents File contents.
  * @param  {Function} cb          Callback.
  */
-function createTempFiles(fileNames, fileContents, cb){
-  async.map(fileNames, function(fileName, cb){
+function createTempFiles(fileNames, fileContents, cb) {
+  async.map(fileNames, function(fileName, cb) {
     createTempFile(fileName, fileContents[fileNames.indexOf(fileName)], cb);
   }, cb);
 }
@@ -137,14 +138,14 @@ function createTempFiles(fileNames, fileContents, cb){
  * @param  {Array}   files  File paths to transform.
  * @param  {Function} cb    Callback.
  */
-function transformFiles(files, cb){
-  async.map(files, transformJSX, function(err, fileContents){
-    if(err) return cb(err);
-    createTempFiles(files, fileContents, function(err, tempFileNames){
-      if(err) return cb(err);
+function transformFiles(files, cb) {
+  async.map(files, transformJSX, function(err, fileContents) {
+    if (err) return cb(err);
+    createTempFiles(files, fileContents, function(err, tempFileNames) {
+      if (err) return cb(err);
       // Create map of temp file names to original file names
       var fileNameMap = {};
-      files.forEach(function(fileName, index){
+      files.forEach(function(fileName, index) {
         fileNameMap[tempFileNames[index]] = fileName;
       });
       cb(null, fileNameMap);
@@ -161,10 +162,10 @@ function transformFiles(files, cb){
  * @param  {ReadableStream}   fileStream Readable stream containing data to transform.
  * @param  {Function} cb                 Callback.
  */
-function transformStream(fileStream, cb){
-  transformJSX(fileStream, function(err, contents){
-    if(err) return cb(err);
-    createTempFile(process.cwd() + '/stdin', contents, function(noErr, tempFileName){
+function transformStream(fileStream, cb) {
+  transformJSX(fileStream, function(err, contents) {
+    if (err) return cb(err);
+    createTempFile(process.cwd() + '/stdin', contents, function(noErr, tempFileName) {
       var out = {};
       out[tempFileName] = 'stdin';
       cb(null, out);
@@ -178,11 +179,11 @@ function transformStream(fileStream, cb){
  * or they are entered via stdin.
  * If they are named from the cli, we need to treat them as globs.
  */
-function run(files, cb){
-  if (Array.isArray(files)){
+function run(files, cb) {
+  if (Array.isArray(files)) {
     transformFiles(files, cb);
-  } else if (files instanceof require('stream').Readable){
-    transformStream(files, function(err, fileContents){
+  } else if (files instanceof require('stream').Readable) {
+    transformStream(files, function(err, fileContents) {
       if (err) throw err;
       cb(null, fileContents);
     });

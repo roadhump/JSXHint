@@ -9,15 +9,20 @@
  *
  */
 /*eslint-env node*/
-/*eslint quotes:0, no-unused-vars:[2] */
+/*eslint quotes:0, no-unused-vars:[2], camelcase: 0,no-path-concat:0 */
 
 'use strict';
 
 var jsxhint = require('./jsxhint');
-var jshintcli = require('jshint/src/cli');
+var cli = require('eslint/lib/cli');
 var fork = require('child_process').fork;
 var through = require('through');
 var fs = require('fs');
+
+var mkdirp = require('mkdirp');
+var tmpdir = require('os').tmpdir();
+var react = require('react-tools');
+var path = require('path');
 
 /**
  * Intercept -h to show jshint help.
@@ -53,13 +58,13 @@ function showVersion() {
  * @param  {Function} cb   Callback.
  */
 function run(opts, cb) {
-  var files = jshintcli.gather(opts);
+  // var files = jshintcli.gather(opts);
 
-  if (opts.useStdin) {
-    jsxhint.transformStream(process.stdin, cb);
-  } else {
+  // if (opts.useStdin) {
+  //   jsxhint.transformStream(process.stdin, cb);
+  // } else {
     jsxhint.transformFiles(files, cb);
-  }
+  // }
 }
 
 /**
@@ -97,43 +102,59 @@ try {
   } else if (process.argv.indexOf('-v') !== -1 || process.argv.indexOf('--version') !== -1) {
     showVersion();
   } else {
-    jshintcli.originalRun = jshintcli.run;
-    jshintcli.run = function(opts, cb) {
-      // Files can either be string data (from stdin), or an object
-      // where keys are the original file name and values are the temporary file
-      // name where the transformed source is written.
-      run(opts, function(err, files) {
-        opts.reporter = interceptReporter(opts.reporter, files);
+    var fileName = process.argv[process.argv.length - 1];
+    // console.log(process.argv)
+    // console.log(fileName);
+    var source = fs.readFileSync(fileName);
+    source = '/** @jsx React.DOM */\n' + source;
+    var transformed = react.transform(source);
+    console.log(transformed);
 
-        // always false, stdin is never going to be usable as we may have read from it for the
-        // transform.
-        opts.useStdin = false;
+    fileName = path.resolve(fileName);
+    var file = path.join(tmpdir, fileName);
+    mkdirp.sync(path.dirname(file));
 
-        if (err) {
-          opts.reporter([{
-            file: err.fileName,
-            error: {
-              line: err.lineNumber,
-              character: err.column,
-              reason: err.description,
-              code: 'E041'
-            }
-          }], {}, opts);
-          return process.exit(1);
-        }
+    fs.writeFileSync(file, transformed);
 
-        opts.args = Object.keys(files);
 
-        // Weird sync/async function, jshint oddity
-        var done = function(passed) {
-          if (passed == null) return;
-          unlinkTemp(files);
-          cb(passed);
-        };
-        done(jshintcli.originalRun(opts, done));
-      });
-    };
-    jshintcli.interpret(process.argv);
+    cli.execute(file);
+    // cli.originalRun = cli.execute;
+    // cli.execute = function(opts, cb) {
+    //   // Files can either be string data (from stdin), or an object
+    //   // where keys are the original file name and values are the temporary file
+    //   // name where the transformed source is written.
+    //   run(opts, function(err, files) {
+    //     opts.reporter = interceptReporter(opts.reporter, files);
+
+    //     // always false, stdin is never going to be usable as we may have read from it for the
+    //     // transform.
+    //     opts.useStdin = false;
+
+    //     if (err) {
+    //       opts.reporter([{
+    //         file: err.fileName,
+    //         error: {
+    //           line: err.lineNumber,
+    //           character: err.column,
+    //           reason: err.description,
+    //           code: 'E041'
+    //         }
+    //       }], {}, opts);
+    //       return process.exit(1);
+    //     }
+
+    //     opts.args = Object.keys(files);
+
+    //     // Weird sync/async function, jshint oddity
+    //     var done = function(passed) {
+    //       if (passed == null) return;
+    //       unlinkTemp(files);
+    //       cb(passed);
+    //     };
+    //     done(jshintcli.originalRun(opts, done));
+    //   });
+    // };
+    // jshintcli.interpret(process.argv);
   }
 } catch (e) {
   console.log(e.message.replace(/cli\.js/, 'jsxhint'));

@@ -16,7 +16,7 @@ var statusForm = React.createClass({
                          data-state="brandLead" />
                 </div>
               </div>
-              <div class="form-group">
+              <div className='form-group'>
                 <label for="status-text" class="col-sm-4 control-label">Status:</label>
                 <div class="col-sm-8">
                   <textarea

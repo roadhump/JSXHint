@@ -1,3 +1,6 @@
+/*eslint-env node*/
+/*eslint quotes:0, no-unused-vars:[2] */
+
 'use strict';
 
 var fs = require('fs');
